@@ -1,0 +1,152 @@
+services:
+
+    # ── Kafka (KRaft 모드 — Apache 공식 이미지) ──────────────────
+    kafka:
+        image: apache/kafka:3.7.0
+        container_name: train-kafka
+        ports:
+            - "9092:9092"
+        env_file:
+            - .env
+        environment:
+            KAFKA_NODE_ID: 1
+            KAFKA_PROCESS_ROLES: broker,controller
+            KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+            KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+            KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+            KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+            KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+            KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+            KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+            KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+        volumes:
+            - kafka_data:/var/lib/kafka/data
+        networks:
+            - train-network
+        healthcheck:
+            test: [ "CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list" ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    # ── PostgreSQL ─────────────────────────────────────────────
+    postgres:
+        image: postgres:16
+        container_name: train-postgres
+        ports:
+            - "5433:5432" # 로컬 5432 충돌로 인해 호스트 포트를 5433 으로 변경
+        environment:
+            - POSTGRES_USER=${POSTGRES_USER}
+            - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+            - POSTGRES_DB=${POSTGRES_DB}
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+            - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+        networks:
+            - train-network
+        healthcheck:
+            test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    # ── Spark Master ───────────────────────────────────────────
+    spark-master:
+        image: apache/spark:3.5.0
+        container_name: train-spark-master
+        command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+        env_file:
+            - .env
+        ports:
+            - "8080:8080" # Spark Web UI
+            - "7077:7077" # Spark Master 포트
+            - "4040:4040" # Spark Jobs UI (작업장 화면)
+        volumes:
+            - ./spark:/opt/spark/apps # consumer.py
+        networks:
+            - train-network
+
+    # ── Spark Worker ───────────────────────────────────────────
+    spark-worker:
+        image: apache/spark:3.5.0
+        container_name: train-spark-worker
+        command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+        env_file:
+            - .env
+        environment:
+            - SPARK_WORKER_MEMORY=1G
+            - SPARK_WORKER_CORES=1
+        volumes:
+            - ./spark:/opt/spark/apps # consumer.py
+        depends_on:
+            - spark-master
+        networks:
+            - train-network
+    superset:
+        image: apache/superset:3.1.0
+        container_name: train-superset
+        ports:
+            - "8088:8088" # Superset Web UI
+        env_file:
+            - .env # SUPERSET_SECRET_KEY 포함
+        environment:
+            - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY}
+        volumes:
+            - superset_data:/app/superset_home
+        networks:
+            - train-network
+        depends_on:
+            - postgres
+    airflow:
+        image: apache/airflow:2.9.1
+        container_name: train-airflow
+        env_file:
+            - .env
+        depends_on:
+            - postgres
+            - kafka
+        environment:
+            AIRFLOW__CORE__EXECUTOR: LocalExecutor
+            AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+            AIRFLOW__CORE__FERNET_KEY: ''
+            AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+            AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+            KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+            AIRFLOW__SMTP__SMTP_HOST: 'smtp.gmail.com'
+            AIRFLOW__SMTP__SMTP_STARTTLS: 'True'
+            AIRFLOW__SMTP__SMTP_SSL: 'False'
+            AIRFLOW__SMTP__SMTP_PORT: '587'
+            AIRFLOW__SMTP__SMTP_USER: ${AIRFLOW_SMTP_USER}
+            AIRFLOW__SMTP__SMTP_PASSWORD: ${AIRFLOW_SMTP_PASSWORD}
+            AIRFLOW__SMTP__SMTP_MAIL_FROM: ${AIRFLOW_SMTP_USER}
+        volumes:
+            - ./airflow/dags:/opt/airflow/dags
+            - ./producer:/opt/airflow/producer # producer 코드 공유
+        ports:
+            - "8082:8080" # Airflow Web UI
+        networks:
+            - train-network
+        command: >
+            bash -c "
+                pip3 install kafka-python requests &&
+                airflow db migrate &&
+                airflow users create \
+                --username admin \
+                --password admin \
+                --firstname Admin \
+                --lastname User \
+                --role Admin \
+                --email admin@example.com || true &&
+                airflow scheduler &
+                airflow webserver
+            "
+volumes:
+    kafka_data:
+    postgres_data:
+    superset_data:
+    airflow_data:
+
+
+networks:
+    train-network:
+        driver: bridge

@@ -1,0 +1,5 @@
+# producer/requirements.txt
+
+requests==2.31.0
+python-dotenv==1.0.0
+kafka-python==2.0.2

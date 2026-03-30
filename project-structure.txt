@@ -1,0 +1,30 @@
+├── airflow/
+│   └── dags/
+│       ├── __pycache__/
+│       │   ├── train_delay_dag.cpython-312.pyc (2.0 KB)
+│       │   └── train_schedule_dag.cpython-312.pyc (1.9 KB)
+│       ├── train_delay_dag.py (1.9 KB)  # 매일 06:00 지연 분석
+│       └── train_schedule_dag.py (1.2 KB)  # 매일 00:05 운행계획 수집
+├── docs/
+│   ├── final_dashboard.jpg (337.5 KB)
+│   └── README.md (8.5 KB)
+├── postgres/
+│   └── init.sql (1.8 KB)   # 초기 DB·테이블 생성
+├── producer/
+│   ├── __pycache__/
+│   │   ├── main.cpython-312.pyc (8.7 KB)
+│   │   └── producer.cpython-312.pyc (17.1 KB)
+│   ├── main.py (7.4 KB)
+│   ├── producer_state.json (0.1 KB) # 중복 발행 방지 상태 파일
+│   ├── producer.py (13.0 KB)  # 60초 realtime 폴링
+│   └── requirements.txt (0.1 KB)
+├── spark/
+│   ├── consumer.py (7.0 KB) # Kafka → PostgreSQL
+│   └── requirements.txt (0.0 KB)
+├── spark_drivers/  # JDBC·Kafka 연동 JAR 파일
+│   ├── commons-pool2-2.11.1.jar (142.1 KB)
+│   ├── kafka-clients-3.4.1.jar (4932.1 KB)
+│   ├── postgresql-42.7.1.jar (1058.8 KB)
+│   ├── spark-sql-kafka-0-10_2.12-3.5.0.jar (422.2 KB)
+│   └── spark-token-provider-kafka-0-10_2.12-3.5.0.jar (55.5 KB)
+└── docker-compose.yml (5.5 KB)
