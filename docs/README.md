@@ -66,7 +66,7 @@
 ---
 ## 📈 대시보드 시각화 결과 
 
-![[train-final.jpg]]
+![대시보드](train-final.jpg)
 
 
 ### 주요 인사이트
