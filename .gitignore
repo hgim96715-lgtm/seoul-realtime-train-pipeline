@@ -1,4 +1,7 @@
 # 상태 저장 파일 무시
 producer_state.json
 *.txt
+# 환경변수 파일
 .env
+.env.*
+env.py
